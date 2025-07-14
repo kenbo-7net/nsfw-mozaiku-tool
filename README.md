@@ -1,78 +1,58 @@
-# 🟡 NSFW Mosaic Tool – AI局部モザイク自動化ツール（Render対応）
+# 🟡 NSFW Mosaic Tool – 局部モザイク処理Webツール
 
-YOLOv8を用いて局部（チンコ・膣・アナル）のみを高精度に検出し、自動でモザイク処理を行うWebツールです。最大100枚までの画像をまとめて処理し、ZIPで一括ダウンロードが可能。Renderによりブラウザ上で簡単に利用できます。
-
----
-
-## 🔧 機能一覧
-
-- ✅ YOLOv8モデルによるNSFW部位検出（genital.pt 対応）
-- ✅ モザイクの濃さ（サイズ）をスライダーで調整可能
-- ✅ 100枚までの画像を一括処理（PNG/JPG/JPEG対応）
-- ✅ ZIP自動生成＆ダウンロード機能付き
-- ✅ Webブラウザから直接操作可能（Flaskベース）
-- ✅ Render にワンクリックでデプロイ可能
+このツールは、AI（YOLOv8）によって画像内の局部（チンコ・膣・アナル）を自動検出し、ブラウザ上でモザイク処理できるWebサービスです。
 
 ---
 
-## 🚀 デモサイト（Render公開URL）
+## 🔗 今すぐ使う（インストール不要）
 
-👉 https://your-render-subdomain.onrender.com
+👇以下のURLからアクセスするだけで利用可能：
 
-> ※ ご自身でデプロイするには以下の「デプロイ方法」をご覧ください。
+👉 **https://your-username.onrender.com**
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kenbo-7net/nsfw-mozaiku-tool)
-
----
-
-## 🛠️ デプロイ方法（Render またはローカル）
-
-### 🔹 Render で公開（推奨）
-
-1. genital.pt を以下のように配置してください：
-
-
-2. 上の Render ボタンをクリックし、GitHubアカウントと連携してデプロイ
-
-3. `Start Command`：`python app.py`  
-   `Build Command`：`pip install -r requirements.txt`  
-   `Python Version`：`3.10.12`
+> ※ スマホでもPCでもブラウザがあればOK。最大100枚の画像をまとめて処理できます。
 
 ---
 
-### 🔹 ローカル環境で実行（開発者向け）
+## 🛠️ できること
 
-```bash
-git clone https://github.com/kenbo-7net/nsfw-mozaiku-tool.git
-cd nsfw-mozaiku-tool
-
-# genital.pt を yolo_models/ に配置
-pip install -r requirements.txt
-python app.py
-nsfw-mozaiku-tool/
-├── app.py               # Flask アプリ本体
-├── nsfw_mosaic.py       # YOLO検出＋モザイク処理
-├── utils.py             # 補助関数
-├── batch_zipper.py      # ZIP生成ロジック
-├── templates/
-│   └── index.html       # フロントエンドUI
-├── yolo_models/
-│   └── genital.pt       # 学習済みYOLOv8モデル
-├── requirements.txt     # 必要パッケージ一覧
-├── render.yaml          # Render用設定
-└── README.md            # このファイル
+- ✅ チンコ・膣・アナルだけをAIで自動検出
+- ✅ モザイク濃度（サイズ）をスライダーで自由に調整
+- ✅ 最大100枚までまとめて処理してZIP保存
+- ✅ 画像アップロード → ワンクリックでDL完了
+- ✅ 導入・インストール一切不要（クラウド動作）
 
 ---
 
-必要に応じて、上記を `README.md` にそのままコピペすれば即使えます。  
-アイコンやデザインはすべて日本語に最適化しており、RenderでもGitHubでも完璧に表示されます。
+## ⚠️ 注意点
+
+- 本サービスは18歳以上向けです。NSFW画像専用。
+- モザイク処理の精度はAIモデルの特性上、完全ではありません。
+- アップロードされた画像は処理後すぐにサーバー上から削除されます（ログ保存なし）。
 
 ---
 
-### ✅ 次のステップおすすめ：
+## 📬 運営・問い合わせ
 
-- `LICENSE` ファイル追加（MITなど）
-- `genital.pt` モデル入手ガイド（models/README.md）
-- `public/sample_xxx.png` の実画像アップ
+本ツールは [あなたの名前 or 運営名] によって提供されています。質問・不具合などは以下までお問い合わせください：
 
-これらが揃えば、完全に共有可能なNSFWツールとして公開レベルに仕上がります。必要なら追加もサポートします。
+
+🔗 [https://twitter.com/yourhandle （任意）](https://x.com/deneiR18)
+
+---
+
+## 🧠 利用者向けFAQ
+
+### Q. スマホでも使えますか？
+A. はい、SafariやChromeが動けば利用可能です。
+
+### Q. モザイクの部位は？
+A. チンコ、膣、アナルのみ。顔や乳首は対象外です。
+
+### Q. 画像は保存されますか？
+A. 一切されません。処理後はZIPで返すのみです。
+
+---
+
+> ぜひブックマークしてご活用ください ✅
+
