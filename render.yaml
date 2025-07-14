@@ -4,4 +4,9 @@ services:
     env: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python app.py"
-    autoDeploy: true
+    pythonVersion: 3.10.12
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DEBUG
+        value: False
