@@ -1,9 +1,8 @@
 
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, send_file
 import os
-port = int(os.environ.get("PORT", 10000))  # Renderが割り当てるポートを使う
-app.run(host="0.0.0.0", port=port)
-
+import cv2
+import numpy as np
 from werkzeug.utils import secure_filename
 import zipfile
 
@@ -46,5 +45,8 @@ def index():
         </form>
     '''
 
+# ✅ Flaskアプリはここで起動（Render対応）
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))  # ← Renderは自動でPORTを割り当てる
+    app.run(host="0.0.0.0", port=port)
+
