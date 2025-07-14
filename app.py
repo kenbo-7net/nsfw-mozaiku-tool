@@ -1,8 +1,9 @@
 
 from flask import Flask, request, render_template, send_file
 import os
-import cv2
-import numpy as np
+port = int(os.environ.get("PORT", 10000))  # Renderが割り当てるポートを使う
+app.run(host="0.0.0.0", port=port)
+
 from werkzeug.utils import secure_filename
 import zipfile
 
