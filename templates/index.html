@@ -2,60 +2,77 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>NSFWモザイク処理ツール</title>
+    <title>NSFWモザイク自動処理ツール</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body {
             font-family: sans-serif;
-            background: #f7f7f7;
-            padding: 20px;
+            background: #111;
+            color: #fff;
+            padding: 30px;
         }
-        .container {
-            background: white;
-            border-radius: 10px;
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        form {
+            background: #222;
             padding: 20px;
+            border-radius: 12px;
             max-width: 600px;
             margin: auto;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
-        .slider-label {
-            margin-top: 15px;
+        label {
+            display: block;
+            margin: 10px 0 5px;
         }
-        input[type="range"] {
+        input[type="file"], input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 12px 20px;
+            background: #00b894;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
             width: 100%;
         }
-        .preview {
-            margin-top: 20px;
+        button:hover {
+            background: #019875;
         }
-        .submit-btn {
-            margin-top: 20px;
-            padding: 10px 20px;
-            font-size: 16px;
+        .note {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <h2>AI自動モザイク処理</h2>
-    <form method="POST" action="/process" enctype="multipart/form-data">
-        <label>画像を複数選択（最大100枚まで）:</label><br>
-        <input type="file" name="images" accept="image/*" multiple required><br>
+    <h1>NSFWモザイク自動処理</h1>
+    <form action="/process" method="post" enctype="multipart/form-data">
+        <label for="images">画像を選択（最大100枚）</label>
+        <input type="file" name="images" id="images" multiple accept="image/png, image/jpeg">
 
-        <div class="slider-label">
-            <label for="mosaicSize">モザイクの濃さ（大きいほど粗い）: <span id="mosaicSizeValue">24</span></label>
-            <input type="range" id="mosaicSize" name="mosaic_size" min="4" max="64" value="24" oninput="mosaicSizeValue.innerText = this.value">
-        </div>
+        <label for="mosaic_size">モザイクの粗さ（推奨: 24〜60）</label>
+        <input type="number" name="mosaic_size" id="mosaic_size" value="30" min="8" max="200">
 
-        <div class="slider-label">
-            <label for="targetArea">モザイク範囲:</label>
-            <select name="target" id="targetArea">
-                <option value="genitals">チンコ・膣・アナルのみ</option>
-                <option value="genitals+breast">＋乳首</option>
-                <option value="full">お尻なども含む全体</option>
-            </select>
-        </div>
+        <label for="target">モザイク対象部位</label>
+        <select name="target" id="target">
+            <option value="genitals">性器（チンコ・アナル・膣）</option>
+            <option value="genitals+breast">性器 + 乳首</option>
+            <option value="full">全裸部位全体</option>
+        </select>
 
-        <button type="submit" class="submit-btn">処理開始</button>
+        <div class="note">※「genitals」モデルは <code>yolo_models/genital.pt</code> を使用します</div>
+
+        <button type="submit">モザイク処理を実行してZIPでダウンロード</button>
     </form>
-</div>
 </body>
 </html>
+
