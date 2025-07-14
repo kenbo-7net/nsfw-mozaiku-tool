@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>NSFWモザイク処理ツール</title>
+</head>
+<body>
+  <h1>画像アップロード（最大400枚）</h1>
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="images" accept="image/*" multiple required>
+    <button type="submit">アップロードして処理</button>
+  </form>
+  {% if result_urls %}
+    <h2>処理済み画像</h2>
+    {% for url in result_urls %}
+      <img src="{{ url }}" width="300"><br>
+    {% endfor %}
+  {% endif %}
+</body>
+</html>
