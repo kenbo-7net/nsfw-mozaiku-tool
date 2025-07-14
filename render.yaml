@@ -2,11 +2,13 @@ services:
   - type: web
     name: nsfw-mozaiku-tool
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python app.py"
+    region: oregon  # 東京リージョンがまだ無いのでUS西部が比較的近い
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
     pythonVersion: 3.10.12
     envVars:
       - key: PORT
         value: 10000
       - key: DEBUG
-        value: False
+        value: "False"
