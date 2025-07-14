@@ -1,57 +1,48 @@
 import os
-import shutil
-from flask import Flask, render_template, request, send_file
+import zipfile
+from flask import Flask, request, render_template, send_file
 from werkzeug.utils import secure_filename
-from nsfw_mosaic import process_image
-from batch_zipper import zip_processed_images
+from nsfw_mosaic import process_images
 
 app = Flask(__name__)
-UPLOAD_FOLDER = "uploads"
-PROCESSED_FOLDER = "processed"
-BATCH_SIZE = 100
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+UPLOAD_FOLDER = 'uploads'
+RESULT_FOLDER = 'results'
+ZIP_NAME = 'mosaic_result.zip'
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+os.makedirs(RESULT_FOLDER, exist_ok=True)
 
-@app.route("/")
+@app.route('/')
 def index():
-    return render_template("index.html")
+    return render_template('index.html')
 
-@app.route("/process", methods=["POST"])
-def process_images():
-    if 'files' not in request.files:
-        return "ファイルが見つかりません", 400
+@app.route('/process', methods=['POST'])
+def process():
+    images = request.files.getlist('images')
+    mosaic_size = int(request.form.get('mosaic_size', 24))
+    target = request.form.get('target', 'genitals')  # 'genitals', 'genitals+breast', 'full'
 
-    files = request.files.getlist("files")
-    mosaic_size = int(request.form.get("mosaic_size", 24))
+    # 保存してパス取得
+    image_paths = []
+    for img in images[:100]:  # 100枚制限
+        filename = secure_filename(img.filename)
+        save_path = os.path.join(UPLOAD_FOLDER, filename)
+        img.save(save_path)
+        image_paths.append(save_path)
 
-    shutil.rmtree(PROCESSED_FOLDER, ignore_errors=True)
-    os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+    # モザイク処理
+    output_paths = process_images(image_paths, RESULT_FOLDER, mosaic_size, target)
 
-    batch_number = 0
-    current_batch = []
-
-    for i, file in enumerate(files):
-        filename = secure_filename(file.filename)
-        input_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(input_path)
-
-        output_path = os.path.join(PROCESSED_FOLDER, filename)
-        processed = process_image(input_path, output_path, mosaic_size)
-
-        if processed:
-            current_batch.append(output_path)
-
-        if len(current_batch) >= BATCH_SIZE or i == len(files) - 1:
-            zip_name = f"batch_{batch_number}.zip"
-            zip_path = zip_processed_images(current_batch, zip_name)
-            batch_number += 1
-            current_batch = []
+    # ZIP保存
+    zip_path = os.path.join(RESULT_FOLDER, ZIP_NAME)
+    with zipfile.ZipFile(zip_path, 'w') as zipf:
+        for path in output_paths:
+            arcname = os.path.basename(path)
+            zipf.write(path, arcname)
 
     return send_file(zip_path, as_attachment=True)
 
-if __name__ == "__main__":
-    app.run(debug=False)
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=10000)
 
 
