@@ -1,78 +1,58 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>NSFWモザイク自動処理ツール</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {
-            font-family: sans-serif;
-            background: #111;
-            color: #fff;
-            padding: 30px;
-        }
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        form {
-            background: #222;
-            padding: 20px;
-            border-radius: 12px;
-            max-width: 600px;
-            margin: auto;
-        }
-        label {
-            display: block;
-            margin: 10px 0 5px;
-        }
-        input[type="file"], input[type="number"], select {
-            width: 100%;
-            padding: 10px;
-            border-radius: 8px;
-            border: none;
-            margin-bottom: 15px;
-        }
-        button {
-            padding: 12px 20px;
-            background: #00b894;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            width: 100%;
-        }
-        button:hover {
-            background: #019875;
-        }
-        .note {
-            font-size: 12px;
-            color: #aaa;
-            margin-bottom: 20px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>NSFWモザイクツール</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f8f8;
+      text-align: center;
+      padding: 40px;
+    }
+    h1 {
+      margin-bottom: 30px;
+    }
+    form {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+    input[type="file"],
+    input[type="number"] {
+      margin: 10px 0;
+      padding: 8px;
+      width: 300px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #007BFF;
+      border: none;
+      color: white;
+      font-weight: bold;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+  </style>
 </head>
 <body>
-    <h1>NSFWモザイク自動処理</h1>
-    <form action="/process" method="post" enctype="multipart/form-data">
-        <label for="images">画像を選択（最大100枚）</label>
-        <input type="file" name="images" id="images" multiple accept="image/png, image/jpeg">
+  <h1>🔞 モザイク処理ツール</h1>
+  <form method="POST" action="/process" enctype="multipart/form-data">
+    <label>画像ファイル（最大100枚）:</label><br>
+    <input type="file" name="images" multiple required><br>
 
-        <label for="mosaic_size">モザイクの粗さ（推奨: 24〜60）</label>
-        <input type="number" name="mosaic_size" id="mosaic_size" value="30" min="8" max="200">
+    <label>モザイクの粗さ（推奨: 24〜36）:</label><br>
+    <input type="number" name="mosaic_size" value="30" min="4" max="100"><br>
 
-        <label for="target">モザイク対象部位</label>
-        <select name="target" id="target">
-            <option value="genitals">性器（チンコ・アナル・膣）</option>
-            <option value="genitals+breast">性器 + 乳首</option>
-            <option value="full">全裸部位全体</option>
-        </select>
+    <input type="hidden" name="target" value="genitals">
 
-        <div class="note">※「genitals」モデルは <code>yolo_models/genital.pt</code> を使用します</div>
-
-        <button type="submit">モザイク処理を実行してZIPでダウンロード</button>
-    </form>
+    <button type="submit">モザイク処理して一括ダウンロード</button>
+  </form>
 </body>
 </html>
 
