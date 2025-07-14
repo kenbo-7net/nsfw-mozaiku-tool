@@ -22,18 +22,15 @@ def process():
     mosaic_size = int(request.form.get('mosaic_size', 24))
     target = request.form.get('target', 'genitals')  # 'genitals', 'genitals+breast', 'full'
 
-    # 保存してパス取得
     image_paths = []
-    for img in images[:100]:  # 100枚制限
+    for img in images[:100]:  # 最大100枚
         filename = secure_filename(img.filename)
         save_path = os.path.join(UPLOAD_FOLDER, filename)
         img.save(save_path)
         image_paths.append(save_path)
 
-    # モザイク処理
     output_paths = process_images(image_paths, RESULT_FOLDER, mosaic_size, target)
 
-    # ZIP保存
     zip_path = os.path.join(RESULT_FOLDER, ZIP_NAME)
     with zipfile.ZipFile(zip_path, 'w') as zipf:
         for path in output_paths:
