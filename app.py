@@ -1,43 +1,62 @@
-from flask import Flask, render_template, request, send_from_directory
 import os
-from utils import process_images
+import cv2
+import numpy as np
+from flask import Flask, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
-import uuid
+from utils import apply_mosaic
+from datetime import datetime
+
+UPLOAD_FOLDER = 'static'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'static/uploads'
-RESULT_FOLDER = 'static/results'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['RESULT_FOLDER'] = RESULT_FOLDER
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
-    if request.method == 'POST':
-        files = request.files.getlist('images')
-        task_id = str(uuid.uuid4())
-        task_dir = os.path.join(app.config['RESULT_FOLDER'], task_id)
-        os.makedirs(task_dir, exist_ok=True)
-
-        image_paths = []
-        for file in files:
-            if file:
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
-                image_paths.append(filepath)
-
-        result_files = process_images(image_paths, task_dir)
-        return render_template('index.html', result_files=result_files, task_id=task_id)
-
     return render_template('index.html')
 
-@app.route('/download/<task_id>/<filename>')
-def download(task_id, filename):
-    return send_from_directory(os.path.join(RESULT_FOLDER, task_id), filename)
+@app.route('/upload', methods=['POST'])
+def upload_images():
+    if 'images' not in request.files:
+        return 'ファイルが見つかりません'
+
+    files = request.files.getlist('images')
+    result_urls = []
+
+    for file in files[:400]:  # 最大400枚まで制限
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S%f')
+            output_filename = f"{timestamp}_{filename}"
+            input_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+            file.save(input_path)
+
+            # モザイク処理
+            image = cv2.imread(input_path)
+            h, w = image.shape[:2]
+
+            # 陰部（中央付近を仮定）をざっくり検出し範囲指定
+            center_x, center_y = w // 2, h // 2
+            bbox_w, bbox_h = w // 5, h // 5
+            bboxes = [(center_x - bbox_w // 2, center_y - bbox_h // 2, bbox_w, bbox_h)]
+
+            result = apply_mosaic(image, bboxes, ratio=0.02)  # ← 濃いめのモザイク
+            cv2.imwrite(input_path, result)
+
+            result_urls.append(f'/static/{output_filename}')
+
+    return render_template('index.html', result_urls=result_urls)
+
+@app.route('/static/<path:filename>')
+def serve_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(host="0.0.0.0", port=10000)
+
