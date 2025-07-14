@@ -2,52 +2,47 @@ import os
 import cv2
 import numpy as np
 from ultralytics import YOLO
+from PIL import Image
 
-# モデルロード（genitals専用モデル）
-model = YOLO("keremberke/yolov8n-porn")  # HuggingFaceのNSFWモデル
+def load_model():
+    model_path = os.path.join("yolo_models", "genital.pt")  # 学習済みモデル
+    return YOLO(model_path)
 
-# ラベル名に応じた部位
-TARGET_CLASSES = {
-    'genitals': ['penis', 'vagina', 'anus'],
-    'genitals+breast': ['penis', 'vagina', 'anus', 'female_breast'],
-    'full': None  # 検出されたすべてにモザイク
-}
+def detect_regions(model, image_path):
+    results = model(image_path, conf=0.4)[0]
+    detections = []
+    for r in results.boxes.data.tolist():
+        x1, y1, x2, y2, conf, cls = r
+        if conf > 0.4:
+            detections.append((int(x1), int(y1), int(x2), int(y2)))
+    return detections
 
-def mosaic_area(img, x1, y1, x2, y2, size=24):
-    area = img[y1:y2, x1:x2]
-    area = cv2.resize(area, (size, size), interpolation=cv2.INTER_LINEAR)
-    area = cv2.resize(area, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
-    img[y1:y2, x1:x2] = area
+def apply_mosaic(image_path, mosaic_size=30):
+    model = load_model()
+    img = cv2.imread(image_path)
+    detections = detect_regions(model, image_path)
+
+    for (x1, y1, x2, y2) in detections:
+        roi = img[y1:y2, x1:x2]
+        if roi.size == 0:
+            continue
+        roi = cv2.resize(roi, (mosaic_size, mosaic_size), interpolation=cv2.INTER_LINEAR)
+        roi = cv2.resize(roi, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
+        img[y1:y2, x1:x2] = roi
+
     return img
 
-def process_images(image_paths, output_dir, mosaic_size, target='genitals'):
-    target_classes = TARGET_CLASSES.get(target, ['penis', 'vagina', 'anus'])
-    results = []
+def batch_process(input_folder, output_folder, mosaic_size=30):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
-    for path in image_paths:
-        img = cv2.imread(path)
-        height, width = img.shape[:2]
+    for filename in os.listdir(input_folder):
+        if filename.lower().endswith(('png', 'jpg', 'jpeg')):
+            image_path = os.path.join(input_folder, filename)
+            out_image = apply_mosaic(image_path, mosaic_size)
+            output_path = os.path.join(output_folder, filename)
+            cv2.imwrite(output_path, out_image)
 
-        detections = model(img)[0]
-        for box in detections.boxes:
-            cls = int(box.cls[0])
-            conf = float(box.conf[0])
-            label = detections.names[cls]
+    print("✅ 全バッチ処理完了")
 
-            if target_classes is not None and label not in target_classes:
-                continue
-            if conf < 0.4:
-                continue
-
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(width, x2), min(height, y2)
-            img = mosaic_area(img, x1, y1, x2, y2, size=mosaic_size)
-
-        filename = os.path.basename(path)
-        save_path = os.path.join(output_dir, filename)
-        cv2.imwrite(save_path, img)
-        results.append(save_path)
-
-    return results
 
