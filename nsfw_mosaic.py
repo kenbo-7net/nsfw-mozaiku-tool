@@ -1,37 +1,53 @@
+import os
 import cv2
 import numpy as np
-import os
+from ultralytics import YOLO
 
-# モザイクの強さ調整
-DEFAULT_MOSAIC_SIZE = 24
+# モデルロード（genitals専用モデル）
+model = YOLO("keremberke/yolov8n-porn")  # HuggingFaceのNSFWモデル
 
-# 今は仮の矩形を使ったランダム検出（学習モデルと差し替え可能）
-def detect_sensitive_areas(image):
-    height, width = image.shape[:2]
-    # デモ用に中央部分に矩形を仮配置
-    return [
-        (int(width * 0.45), int(height * 0.6), int(width * 0.1), int(height * 0.15))  # x, y, w, h
-    ]
+# ラベル名に応じた部位
+TARGET_CLASSES = {
+    'genitals': ['penis', 'vagina', 'anus'],
+    'genitals+breast': ['penis', 'vagina', 'anus', 'female_breast'],
+    'full': None  # 検出されたすべてにモザイク
+}
 
-def apply_mosaic(image, areas, mosaic_size=DEFAULT_MOSAIC_SIZE):
-    for (x, y, w, h) in areas:
-        roi = image[y:y+h, x:x+w]
-        roi = cv2.resize(roi, (mosaic_size, mosaic_size), interpolation=cv2.INTER_LINEAR)
-        roi = cv2.resize(roi, (w, h), interpolation=cv2.INTER_NEAREST)
-        image[y:y+h, x:x+w] = roi
-    return image
+def mosaic_area(img, x1, y1, x2, y2, size=24):
+    area = img[y1:y2, x1:x2]
+    area = cv2.resize(area, (size, size), interpolation=cv2.INTER_LINEAR)
+    area = cv2.resize(area, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
+    img[y1:y2, x1:x2] = area
+    return img
 
-def process_image(input_path, output_path, mosaic_size=DEFAULT_MOSAIC_SIZE):
-    image = cv2.imread(input_path)
-    if image is None:
-        print(f"画像読み込み失敗: {input_path}")
-        return False
+def process_images(image_paths, output_dir, mosaic_size, target='genitals'):
+    target_classes = TARGET_CLASSES.get(target, ['penis', 'vagina', 'anus'])
+    results = []
 
-    areas = detect_sensitive_areas(image)
-    if not areas:
-        print("検出部位なし → 処理スキップ")
-        return False
+    for path in image_paths:
+        img = cv2.imread(path)
+        height, width = img.shape[:2]
 
-    result = apply_mosaic(image, areas, mosaic_size)
-    cv2.imwrite(output_path, result)
-    return True
+        detections = model(img)[0]
+        for box in detections.boxes:
+            cls = int(box.cls[0])
+            conf = float(box.conf[0])
+            label = detections.names[cls]
+
+            if target_classes is not None and label not in target_classes:
+                continue
+            if conf < 0.4:
+                continue
+
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(width, x2), min(height, y2)
+            img = mosaic_area(img, x1, y1, x2, y2, size=mosaic_size)
+
+        filename = os.path.basename(path)
+        save_path = os.path.join(output_dir, filename)
+        cv2.imwrite(save_path, img)
+        results.append(save_path)
+
+    return results
+
