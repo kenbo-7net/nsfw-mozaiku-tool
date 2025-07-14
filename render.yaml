@@ -1,9 +1,7 @@
-
 services:
   - type: web
-    name: nsfw-blur-tool
+    name: nsfw-mozaiku-tool
     env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
-    envVars: []
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python app.py"
+    autoDeploy: true
