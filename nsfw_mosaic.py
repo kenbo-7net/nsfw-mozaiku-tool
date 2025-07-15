@@ -1,42 +1,41 @@
-import cv2
 import os
+import cv2
 from ultralytics import YOLO
 
-MODEL_PATH = 'genital.pt'  # ダウンロード済みモデルファイル名
-OUTPUT_DIR = 'output'
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# モデルパス（genital.pt はプロジェクトルートに置く前提）
+MODEL_PATH = 'genital.pt'
 
-# YOLOv8でgenital.ptを読み込む（task='detect'は明示しなくてもOK）
+# YOLO モデルを初期化
 model = YOLO(MODEL_PATH)
 
-def apply_mosaic(image, x, y, w, h, mosaic_size=10):
-    roi = image[y:y + h, x:x + w]
-    roi = cv2.resize(roi, (mosaic_size, mosaic_size), interpolation=cv2.INTER_LINEAR)
-    roi = cv2.resize(roi, (w, h), interpolation=cv2.INTER_NEAREST)
-    image[y:y + h, x:x + w] = roi
+def mosaic_region(image, x1, y1, x2, y2, factor=15):
+    region = image[y1:y2, x1:x2]
+    small = cv2.resize(region, (max(1, (x2 - x1)//factor), max(1, (y2 - y1)//factor)))
+    mosaic = cv2.resize(small, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
+    image[y1:y2, x1:x2] = mosaic
     return image
 
-def process_images(input_dir='uploads', output_dir=OUTPUT_DIR):
+def process_images(input_dir='uploads', output_dir='output'):
+    os.makedirs(output_dir, exist_ok=True)
     for filename in os.listdir(input_dir):
-        if not filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-            continue
+        if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+            input_path = os.path.join(input_dir, filename)
+            output_path = os.path.join(output_dir, filename)
 
-        image_path = os.path.join(input_dir, filename)
-        image = cv2.imread(image_path)
-        if image is None:
-            print(f"画像の読み込みに失敗しました: {filename}")
-            continue
+            image = cv2.imread(input_path)
+            if image is None:
+                continue
 
-        results = model.predict(source=image_path, conf=0.3, iou=0.5)
-        detections = results[0].boxes.xyxy.cpu().numpy().astype(int)
+            results = model.predict(source=input_path, conf=0.3)
+            boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
 
-        for (x1, y1, x2, y2) in detections:
-            image = apply_mosaic(image, x1, y1, x2 - x1, y2 - y1)
+            for x1, y1, x2, y2 in boxes:
+                h, w = image.shape[:2]
+                x1 = max(0, min(x1, w - 1))
+                x2 = max(0, min(x2, w - 1))
+                y1 = max(0, min(y1, h - 1))
+                y2 = max(0, min(y2, h - 1))
+                image = mosaic_region(image, x1, y1, x2, y2)
 
-        output_path = os.path.join(output_dir, filename)
-        cv2.imwrite(output_path, image)
-        print(f"[✅] {filename} を処理して保存しました")
-
-if __name__ == '__main__':
-    process_images()
+            cv2.imwrite(output_path, image)
 
