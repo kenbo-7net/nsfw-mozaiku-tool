@@ -4,14 +4,14 @@ import numpy as np
 import requests
 from ultralytics import YOLO
 
-MODEL_URL = "https://github.com/kenbo-7net/nsfw-mozaiku-tool/releases/download/v1.0/genital.pt"
-MODEL_PATH = "genital.pt"
+MODEL_URL = 'https://github.com/kenbo-7net/nsfw-mozaiku-tool/releases/download/v1.0.0/genital.pt'
+MODEL_PATH = 'genital.pt'
 
-# モデルがなければGitHubからDL
 if not os.path.exists(MODEL_PATH):
     print("🟡 genital.pt モデルをダウンロード中...")
-    response = requests.get(MODEL_URL)
-    with open(MODEL_PATH, 'wb') as f:
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    print("✅ genital.pt を保存しました。")
+
         f.write(response.content)
     print("✅ genital.pt を保存しました。")
 
