@@ -1,41 +1,37 @@
 import os
 import cv2
+import numpy as np
+import requests
 from ultralytics import YOLO
 
-# モデルパス（genital.pt はプロジェクトルートに置く前提）
-MODEL_PATH = 'genital.pt'
+MODEL_URL = "https://github.com/kenbo-7net/nsfw-mozaiku-tool/releases/download/v1.0/genital.pt"
+MODEL_PATH = "genital.pt"
 
-# YOLO モデルを初期化
+# モデルがなければGitHubからDL
+if not os.path.exists(MODEL_PATH):
+    print("🟡 genital.pt モデルをダウンロード中...")
+    response = requests.get(MODEL_URL)
+    with open(MODEL_PATH, 'wb') as f:
+        f.write(response.content)
+    print("✅ genital.pt を保存しました。")
+
 model = YOLO(MODEL_PATH)
 
-def mosaic_region(image, x1, y1, x2, y2, factor=15):
-    region = image[y1:y2, x1:x2]
-    small = cv2.resize(region, (max(1, (x2 - x1)//factor), max(1, (y2 - y1)//factor)))
-    mosaic = cv2.resize(small, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
-    image[y1:y2, x1:x2] = mosaic
-    return image
+def apply_mosaic(img, x1, y1, x2, y2, mosaic_scale=0.05):
+    roi = img[y1:y2, x1:x2]
+    roi_small = cv2.resize(roi, (max(1, int((x2 - x1) * mosaic_scale)), max(1, int((y2 - y1) * mosaic_scale))))
+    roi_mosaic = cv2.resize(roi_small, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
+    img[y1:y2, x1:x2] = roi_mosaic
+    return img
 
-def process_images(input_dir='uploads', output_dir='output'):
+def process_images(image_paths, output_dir):
     os.makedirs(output_dir, exist_ok=True)
-    for filename in os.listdir(input_dir):
-        if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-            input_path = os.path.join(input_dir, filename)
-            output_path = os.path.join(output_dir, filename)
-
-            image = cv2.imread(input_path)
-            if image is None:
-                continue
-
-            results = model.predict(source=input_path, conf=0.3)
-            boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
-
-            for x1, y1, x2, y2 in boxes:
-                h, w = image.shape[:2]
-                x1 = max(0, min(x1, w - 1))
-                x2 = max(0, min(x2, w - 1))
-                y1 = max(0, min(y1, h - 1))
-                y2 = max(0, min(y2, h - 1))
-                image = mosaic_region(image, x1, y1, x2, y2)
-
-            cv2.imwrite(output_path, image)
+    for path in image_paths:
+        img = cv2.imread(path)
+        results = model(img)[0]
+        for box in results.boxes.xyxy:
+            x1, y1, x2, y2 = map(int, box)
+            img = apply_mosaic(img, x1, y1, x2, y2)
+        filename = os.path.basename(path)
+        cv2.imwrite(os.path.join(output_dir, filename), img)
 
