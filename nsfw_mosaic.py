@@ -1,64 +1,72 @@
 import os
 import cv2
-import torch
-import requests
-from ultralytics.models.yolo.detect import DetectionModel
-from utils import apply_mosaic
+import numpy as np
+from ultralytics import YOLO
 
+# -------------------------
+# 設定
+# -------------------------
 MODEL_DIR = "yolo_models"
 MODEL_PATH = os.path.join(MODEL_DIR, "genital.pt")
-MODEL_URL = "https://github.com/kenbo-7net/nsfw-mozaiku-tool/releases/download/model/genital.pt"
+MODEL_URL = "https://github.com/kenbo-7net/nsfw-mozaiku-tool/releases/download/model/genital.pt"  # ここにあなたの正しいURLを設定
 
-# モデルをダウンロード
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        os.makedirs(MODEL_DIR, exist_ok=True)
-        print("🟡 genital.pt モデルをダウンロード中...")
-        response = requests.get(MODEL_URL)
-        with open(MODEL_PATH, "wb") as f:
-            f.write(response.content)
-        print("✅ genital.pt を保存しました。")
+MOS_SIZE = 40  # モザイクのピクセルサイズ
 
-download_model()
+# -------------------------
+# モデルが存在しなければダウンロード
+# -------------------------
+if not os.path.exists(MODEL_PATH):
+    print("🟡 genital.pt モデルをダウンロード中...")
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    import requests
+    r = requests.get(MODEL_URL)
+    with open(MODEL_PATH, "wb") as f:
+        f.write(r.content)
+    print("✅ genital.pt を保存しました。")
 
-# 安全にモデル読み込み（weights_only=False 指定）
-def load_model(path):
-    print("📦 YOLO モデルを読み込み中...")
-    ckpt = torch.load(path, map_location="cpu", weights_only=False)
-    model = DetectionModel(cfg=ckpt['model'].yaml)
-    model.load_state_dict(ckpt['model'].float().state_dict())
-    model.eval()
-    return model
+# -------------------------
+# モデルの読み込み（weights_only=False 相当）
+# -------------------------
+model = YOLO(MODEL_PATH, task='detect')
 
-model = load_model(MODEL_PATH)
 
-# ラベルマッピング
-CLASS_MAP = {
-    0: 'penis',
-    1: 'vagina',
-    2: 'anus'
-}
+# -------------------------
+# モザイク処理関数
+# -------------------------
+def mosaic_area(img, x1, y1, x2, y2, size=MOS_SIZE):
+    roi = img[y1:y2, x1:x2]
+    roi = cv2.resize(roi, ((x2 - x1) // size, (y2 - y1) // size), interpolation=cv2.INTER_LINEAR)
+    roi = cv2.resize(roi, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
+    img[y1:y2, x1:x2] = roi
+    return img
 
-def detect_and_mosaic(image_path, mosaic_size=25, detection_mode="genitals"):
-    image = cv2.imread(image_path)
-    results = model.predict(image)[0]  # ultralyticsモデルと同様に扱えるように構成
 
-    h, w, _ = image.shape
-    regions = []
+# -------------------------
+# 画像群を処理する関数
+# -------------------------
+def process_images(image_paths, conf=0.4):
+    results = []
 
-    for box in results.boxes:
-        cls_id = int(box.cls[0].item())
-        label = CLASS_MAP.get(cls_id)
-        if label is None:
+    for path in image_paths:
+        img = cv2.imread(path)
+        if img is None:
+            print(f"⚠️ 読み込み失敗: {path}")
             continue
 
-        if detection_mode == "genitals" and label not in ['penis', 'vagina', 'anus']:
-            continue
-        elif detection_mode == "genitals+breast" and label not in ['penis', 'vagina', 'anus', 'breast']:
-            continue
+        height, width, _ = img.shape
+        detections = model(path, conf=conf)[0].boxes
 
-        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
-        regions.append((x1, y1, x2, y2))
+        for box in detections:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            x1 = max(x1, 0)
+            y1 = max(y1, 0)
+            x2 = min(x2, width)
+            y2 = min(y2, height)
 
-    output_image = apply_mosaic(image, regions, mosaic_size)
+            img = mosaic_area(img, x1, y1, x2, y2)
+
+        results.append((path, img))
+
+    return results
+
     return output_image
