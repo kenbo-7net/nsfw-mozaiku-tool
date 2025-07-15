@@ -1,47 +1,61 @@
 import os
 import cv2
-import numpy as np
+import torch
+import requests
 from ultralytics import YOLO
+from utils import apply_mosaic
 
-# モデルを読み込み（1回のみ）
-model_path = os.path.join("yolo_models", "genital.pt")
-model = YOLO(model_path)
+MODEL_DIR = "yolo_models"
+MODEL_PATH = os.path.join(MODEL_DIR, "genital.pt")
+MODEL_URL = "https://github.com/kenbo-7net/nsfw-mozaiku-tool/releases/download/model/genital.pt"
 
-def detect_genitals(image_path, conf_threshold=0.4):
-    results = model(image_path, conf=conf_threshold)[0]
-    detections = []
-    for r in results.boxes.data.tolist():
-        x1, y1, x2, y2, conf, cls = r
-        if conf > conf_threshold:
-            detections.append((int(x1), int(y1), int(x2), int(y2)))
-    return detections
+# モデルの自動ダウンロード
+def download_model():
+    if not os.path.exists(MODEL_PATH):
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        print("🟡 genital.pt モデルをダウンロード中...")
+        response = requests.get(MODEL_URL)
+        with open(MODEL_PATH, "wb") as f:
+            f.write(response.content)
+        print("✅ genital.pt を保存しました。")
 
-def mosaic_region(img, x1, y1, x2, y2, mosaic_size):
-    roi = img[y1:y2, x1:x2]
-    if roi.size == 0:
-        return
-    roi = cv2.resize(roi, (mosaic_size, mosaic_size), interpolation=cv2.INTER_LINEAR)
-    roi = cv2.resize(roi, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
-    img[y1:y2, x1:x2] = roi
+download_model()
 
-def apply_mosaic_to_image(image_path, output_path, mosaic_size=30):
-    img = cv2.imread(image_path)
-    detections = detect_genitals(image_path)
+# YOLO モデル読み込み
+model = YOLO(MODEL_PATH)
 
-    for (x1, y1, x2, y2) in detections:
-        mosaic_region(img, x1, y1, x2, y2, mosaic_size)
+# 検出カテゴリごとのラベル
+CLASS_MAP = {
+    0: 'penis',
+    1: 'vagina',
+    2: 'anus'
+}
 
-    cv2.imwrite(output_path, img)
+def detect_and_mosaic(image_path, mosaic_size=25, detection_mode="genitals"):
+    image = cv2.imread(image_path)
+    results = model(image)[0]
 
-def process_images(image_paths, output_dir, mosaic_size=30, target="genitals"):
-    output_paths = []
+    h, w, _ = image.shape
+    regions = []
 
-    os.makedirs(output_dir, exist_ok=True)
+    for box in results.boxes:
+        cls_id = int(box.cls[0].item())
+        label = CLASS_MAP.get(cls_id, None)
+        if label is None:
+            continue
 
-    for image_path in image_paths:
-        filename = os.path.basename(image_path)
-        output_path = os.path.join(output_dir, filename)
-        apply_mosaic_to_image(image_path, output_path, mosaic_size)
-        output_paths.append(output_path)
+        # 検出対象かどうか確認
+        if detection_mode == "genitals" and label not in ['penis', 'vagina', 'anus']:
+            continue
+        elif detection_mode == "genitals+breast" and label not in ['penis', 'vagina', 'anus', 'breast']:
+            continue
+        elif detection_mode == "full":
+            pass  # 全て適用
 
-    return output_paths
+        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+        regions.append((x1, y1, x2, y2))
+
+    # モザイク適用
+    output_image = apply_mosaic(image, regions, mosaic_size)
+    return output_image
+
