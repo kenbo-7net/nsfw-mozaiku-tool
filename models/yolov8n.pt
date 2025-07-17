@@ -1,1 +1,18 @@
+from ultralytics import YOLO
+
+# モデル読み込み（models/yolov8n.pt に配置されている前提）
+model = YOLO("models/yolov8n.pt")
+
+# 画像に対して推論（ファイル名は適宜変更）
+results = model("uploads/sample.jpg")
+
+# 結果を画像として保存（outputs/ に保存されます）
+results[0].save(filename="outputs/result.jpg")
+
+# 詳細なラベル・座標・信頼度を確認したい場合
+for r in results:
+    for box in r.boxes:
+        print("ラベル:", r.names[int(box.cls[0])])
+        print("座標:", box.xyxy[0].tolist())
+        print("信頼度:", float(box.conf[0]))
 
