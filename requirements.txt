@@ -1,5 +1,4 @@
-flask
-ultralytics
+ultralytics==8.3.167
 opencv-python
-numpy<2
-requests
+flask
+Werkzeug
