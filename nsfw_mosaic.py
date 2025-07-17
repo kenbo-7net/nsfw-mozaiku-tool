@@ -4,7 +4,7 @@ import numpy as np
 from ultralytics import YOLO
 import requests
 
-MODEL_PATH = 'genital.pt'
+MODEL_PATH = "models/yolov8n.pt"
 MODEL_URL = 'https://github.com/kenbo-7net/nsfw-mozaiku-tool/releases/download/v1.0.0/genital.pt'
 
 if not os.path.exists(MODEL_PATH):
