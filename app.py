@@ -18,34 +18,29 @@ def index():
 
 @app.route('/process', methods=['POST'])
 def process():
-    # フォルダを初期化
+    # フォルダ初期化
     for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
         os.makedirs(folder, exist_ok=True)
         for f in os.listdir(folder):
             os.remove(os.path.join(folder, f))
 
-    # パラメータ取得
     mosaic_size = int(request.form.get('mosaic_size', 30))
-
-    # 画像保存
     files = request.files.getlist('images')
+
     for file in files:
         filename = secure_filename(file.filename)
         file.save(os.path.join(UPLOAD_FOLDER, filename))
 
-    # モザイク処理（オプション付き）
-    process_images(UPLOAD_FOLDER, OUTPUT_FOLDER, mosaic_size=mosaic_size)
+    process_images(UPLOAD_FOLDER, OUTPUT_FOLDER, mosaic_size)
 
-    # ZIP圧縮
+    # ZIP化
     with zipfile.ZipFile(ZIP_PATH, 'w') as zipf:
-        for fname in os.listdir(OUTPUT_FOLDER):
-            zipf.write(os.path.join(OUTPUT_FOLDER, fname), arcname=fname)
+        for filename in os.listdir(OUTPUT_FOLDER):
+            file_path = os.path.join(OUTPUT_FOLDER, filename)
+            zipf.write(file_path, arcname=filename)
 
-    return redirect('/download')
-
-@app.route('/download')
-def download():
     return send_file(ZIP_PATH, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(debug=True)
+
