@@ -2,9 +2,10 @@ services:
   - type: web
     name: nsfw-mozaiku-tool
     env: python
-    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.12
+    region: singapore
+
+envVars:
+  - key: PYTHON_VERSION
+    value: 3.10
