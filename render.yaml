@@ -1,9 +1,9 @@
 services:
   - type: web
     name: nsfw-mozaiku-tool
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
+    runtime: python
+    buildCommand: ""
+    startCommand: "python app.py"
     envVars:
       - key: PORT
         value: 10000
