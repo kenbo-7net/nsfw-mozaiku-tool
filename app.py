@@ -42,7 +42,5 @@ def process():
     return send_file(ZIP_PATH, as_attachment=True)
 
 if __name__ == '__main__':
-    # ✅ Renderが認識できるポート設定
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
-
+    port = int(os.environ.get("PORT", 10000))  # ← Renderはここからポート番号を受け取る
+    app.run(host="0.0.0.0", port=port, debug=False)  # ← 必ず 0.0.0.0 にする
