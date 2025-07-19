@@ -1,43 +1,44 @@
 import os
 import cv2
-import numpy as np
 from ultralytics import YOLO
 
-MODEL_PATH = "models/genital.pt"
-TARGET_LABELS = {"penis", "vagina", "anus"}
+# モデルの読み込み
+model = YOLO('models/genital.pt')
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
 
-model = YOLO(MODEL_PATH)
-
-def apply_mosaic(image, x, y, w, h, mosaic_size=16):
-    roi = image[y:y + h, x:x + w]
-    roi = cv2.resize(roi, (mosaic_size, mosaic_size), interpolation=cv2.INTER_LINEAR)
-    roi = cv2.resize(roi, (w, h), interpolation=cv2.INTER_NEAREST)
-    image[y:y + h, x:x + w] = roi
+# モザイク処理関数
+def mosaic_area(image, x, y, w, h, ratio=0.1):
+    mosaic = image[y:y+h, x:x+w]
+    small = cv2.resize(mosaic, (max(1, int(w*ratio)), max(1, int(h*ratio))), interpolation=cv2.INTER_LINEAR)
+    mosaic = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
+    image[y:y+h, x:x+w] = mosaic
     return image
 
+# 画像を一括で処理
 def process_images(input_folder, output_folder):
-    os.makedirs(output_folder, exist_ok=True)
-    image_files = [f for f in os.listdir(input_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    for filename in os.listdir(input_folder):
+        name, ext = os.path.splitext(filename.lower())
+        if ext not in ALLOWED_EXTENSIONS:
+            continue
 
-    for file in image_files:
-        img_path = os.path.join(input_folder, file)
-        image = cv2.imread(img_path)
-        height, width = image.shape[:2]
+        path = os.path.join(input_folder, filename)
+        image = cv2.imread(path)
+        if image is None:
+            continue
 
-        results = model(img_path, verbose=False)[0]
-
+        # 推論
+        results = model(path)[0]
         for box in results.boxes:
-            label = model.names[int(box.cls)]
-            if label in TARGET_LABELS:
-                conf = float(box.conf)
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                x1 = max(0, x1)
-                y1 = max(0, y1)
-                x2 = min(width, x2)
-                y2 = min(height, y2)
-                w, h = x2 - x1, y2 - y1
-                image = apply_mosaic(image, x1, y1, w, h)
+            cls = int(box.cls[0])
+            if cls not in [0, 1, 2]:  # penis, vagina, anus のみ
+                continue
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(image.shape[1], x2), min(image.shape[0], y2)
+            image = mosaic_area(image, x1, y1, x2 - x1, y2 - y1)
 
-        out_path = os.path.join(output_folder, file)
-        cv2.imwrite(out_path, image)
+        # 保存
+        output_path = os.path.join(output_folder, filename)
+        cv2.imwrite(output_path, image)
+
 
