@@ -1,88 +1,64 @@
 import os
 import cv2
 import csv
-import time
-import datetime
-import requests
-from collections import defaultdict
 from ultralytics import YOLO
 
-model = YOLO('models/genital.pt')  # penis, vagina, anus
+model = YOLO("models/genital.pt")
 
-SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL')
+def apply_mosaic(image, x1, y1, x2, y2, mosaic_rate=0.1):
+    roi = image[y1:y2, x1:x2]
+    small = cv2.resize(roi, (max(1, int((x2 - x1) * mosaic_rate)), max(1, int((y2 - y1) * mosaic_rate))))
+    mosaic = cv2.resize(small, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
+    image[y1:y2, x1:x2] = mosaic
+    return image
 
-def process_images(input_dir, output_dir, enable_csv=True, enable_slack=True):
-    os.makedirs(output_dir, exist_ok=True)
-    results_csv_path = os.path.join(output_dir, 'detection_results.csv')
+def process_images_and_log(image_paths, output_dir, csv_path):
+    stats = {"penis": 0, "vagina": 0, "anus": 0}
+    log_data = []
+    processed_paths = []
 
-    total_detections = 0
-    class_counter = defaultdict(int)
-    image_counter = 0
+    for img_path in image_paths:
+        image = cv2.imread(img_path)
+        results = model(img_path)[0]
 
-    if enable_csv:
-        csv_file = open(results_csv_path, mode='w', newline='', encoding='utf-8')
-        csv_writer = csv.writer(csv_file)
-        csv_writer.writerow(['Filename', 'Class', 'X1', 'Y1', 'X2', 'Y2'])
-
-    start_time = time.time()
-
-    for filename in os.listdir(input_dir):
-        if not filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-            continue
-
-        image_path = os.path.join(input_dir, filename)
-        image = cv2.imread(image_path)
-        results = model.predict(image)[0]
-        boxes = results.boxes
-        names = results.names if hasattr(results, 'names') else model.names
-
-        image_detections = 0
-
-        for box in boxes:
+        for box in results.boxes:
             cls_id = int(box.cls[0])
-            label = names[cls_id]
+            label = results.names[cls_id]
+            if label not in stats:
+                continue
+
+            stats[label] += 1
+
             x1, y1, x2, y2 = map(int, box.xyxy[0])
+            h, w = image.shape[:2]
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(w, x2), min(h, y2)
 
-            # ログ記録
-            if enable_csv:
-                csv_writer.writerow([filename, label, x1, y1, x2, y2])
+            image = apply_mosaic(image, x1, y1, x2, y2)
 
-            class_counter[label] += 1
-            total_detections += 1
-            image_detections += 1
+            log_data.append({
+                "filename": os.path.basename(img_path),
+                "class": label,
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2
+            })
 
-            # モザイク処理
-            roi = image[y1:y2, x1:x2]
-            if roi.size == 0: continue
-            mosaic = cv2.resize(roi, (8, 8), interpolation=cv2.INTER_LINEAR)
-            mosaic = cv2.resize(mosaic, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
-            image[y1:y2, x1:x2] = mosaic
+        output_path = os.path.join(output_dir, os.path.basename(img_path))
+        cv2.imwrite(output_path, image)
+        processed_paths.append(output_path)
 
-        if image_detections > 0:
-            cv2.imwrite(os.path.join(output_dir, filename), image)
+    # CSV出力
+    with open(csv_path, mode='w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=["filename", "class", "x1", "y1", "x2", "y2"])
+        writer.writeheader()
+        writer.writerows(log_data)
 
-        image_counter += 1
+        # 統計行（最後に追記）
+        writer.writerow({})
+        for cls, count in stats.items():
+            writer.writerow({"filename": f"[STATS] {cls}", "class": count})
 
-    # CSVに合計件数追記
-    if enable_csv:
-        csv_writer.writerow([])
-        csv_writer.writerow(['--- Summary ---'])
-        csv_writer.writerow(['Total Images Processed', image_counter])
-        csv_writer.writerow(['Total Detections', total_detections])
-        for cls, count in class_counter.items():
-            csv_writer.writerow([f'Class: {cls}', f'{count} items'])
-        csv_file.close()
+    return stats, processed_paths
 
-    # Slack通知（オプション）
-    if enable_slack and SLACK_WEBHOOK_URL:
-        elapsed = round(time.time() - start_time, 2)
-        summary = "\n".join([f"・{cls}: {count}件" for cls, count in class_counter.items()])
-        message = (
-            f"✅ *NSFWモザイク処理が完了しました*\n"
-            f"🖼️ 処理画像数: *{image_counter}枚*\n"
-            f"🔍 検出総数: *{total_detections}件*\n"
-            f"{summary}\n"
-            f"🕒 所要時間: {elapsed}秒\n"
-            f"📁 出力先: `{output_dir}`"
-        )
-        requests.post(SLACK_WEBHOOK_URL, json={"text": message})
