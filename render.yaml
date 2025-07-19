@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: nsfw-mozaiku-tool
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    autoDeploy: true
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    region: oregon
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - app.py
+        - nsfw_mosaic.py
+        - batch_zipper.py
+        - templates/index.html
+        - static/**
+        - requirements.txt
+        - render.yaml
+
