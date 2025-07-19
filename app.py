@@ -5,40 +5,38 @@ from werkzeug.utils import secure_filename
 from nsfw_mosaic import process_images
 
 UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'outputs'
-ZIP_PATH = 'processed_images.zip'
-PORT = int(os.environ.get('PORT', 10000))  # Render用
+OUTPUT_FOLDER = 'static/outputs'
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
-@app.route('/')
+# フォルダ初期化
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+@app.route('/', methods=['GET'])
 def index():
-    return render_template('index.html')
+    files = os.listdir(OUTPUT_FOLDER)
+    files = [f for f in files if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    return render_template('index.html', files=files)
 
 @app.route('/process', methods=['POST'])
 def process():
-    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
-        os.makedirs(folder, exist_ok=True)
-        for f in os.listdir(folder):
-            os.remove(os.path.join(folder, f))
+    # 画像アップロード処理
+    uploaded_files = request.files.getlist('images')
+    for file in uploaded_files:
+        if file and file.filename:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
 
-    files = request.files.getlist('images')
-    for file in files:
-        filename = secure_filename(file.filename)
-        save_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(save_path)
-
+    # モザイク処理実行
     process_images(UPLOAD_FOLDER, OUTPUT_FOLDER)
 
-    with zipfile.ZipFile(ZIP_PATH, 'w') as zipf:
-        for root, _, files in os.walk(OUTPUT_FOLDER):
-            for file in files:
-                filepath = os.path.join(root, file)
-                zipf.write(filepath, arcname=file)
+    return index()
 
-    return send_file(ZIP_PATH, as_attachment=True)
-
+# Render用PORT
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=PORT)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
