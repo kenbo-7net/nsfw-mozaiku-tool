@@ -2,63 +2,70 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>NSFW自動モザイクツール</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSFWモザイクツール</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-start p-6">
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-start p-6">
+  <div class="w-full max-w-3xl">
+    <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">NSFWモザイクツール</h1>
 
-  <h1 class="text-3xl font-bold mb-6 text-center">NSFW自動モザイクツール</h1>
+    <form id="upload-form" method="POST" action="/process" enctype="multipart/form-data" class="bg-white rounded-xl shadow p-6">
+      <label for="images" class="block text-lg font-medium text-gray-700 mb-2">画像をドロップまたは選択：</label>
+      
+      <div id="drop-area" class="w-full h-48 border-4 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-500 hover:border-indigo-500 cursor-pointer mb-4">
+        ここに画像をドラッグ＆ドロップ
+      </div>
+      
+      <input type="file" id="images" name="images" multiple accept="image/*" class="hidden" />
+      
+      <div id="preview" class="grid grid-cols-2 gap-3 mb-4"></div>
 
-  <form id="uploadForm" action="/process" method="POST" enctype="multipart/form-data" class="w-full max-w-2xl p-4 bg-gray-800 rounded-lg shadow-md">
-    <div id="dropZone" class="border-2 border-dashed border-gray-500 p-10 rounded-lg text-center hover:bg-gray-700 cursor-pointer">
-      <p class="text-gray-300">ここに画像をドロップするか、クリックして選択（最大100枚）</p>
-      <input id="fileInput" type="file" name="images" multiple accept="image/*" class="hidden" />
-    </div>
-
-    <div class="mt-6 text-center">
-      <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg text-lg font-semibold">
         モザイク処理を開始
       </button>
-    </div>
-  </form>
+    </form>
 
-  {% if files %}
-  <div class="mt-10 w-full max-w-6xl">
-    <h2 class="text-xl font-semibold mb-4">処理済み画像</h2>
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-      {% for file in files %}
-      <div class="bg-gray-800 rounded shadow">
-        <img src="{{ url_for('static', filename='outputs/' + file) }}" alt="processed" class="w-full rounded-t"/>
-        <div class="p-2 text-sm break-all">{{ file }}</div>
-      </div>
-      {% endfor %}
-    </div>
+    <div id="status" class="mt-4 text-center text-sm text-gray-600"></div>
   </div>
-  {% endif %}
 
   <script>
-    const dropZone = document.getElementById("dropZone");
-    const fileInput = document.getElementById("fileInput");
+    const dropArea = document.getElementById('drop-area');
+    const input = document.getElementById('images');
+    const preview = document.getElementById('preview');
+    const status = document.getElementById('status');
 
-    dropZone.addEventListener("click", () => fileInput.click());
-
-    dropZone.addEventListener("dragover", e => {
+    dropArea.addEventListener('click', () => input.click());
+    dropArea.addEventListener('dragover', e => {
       e.preventDefault();
-      dropZone.classList.add("bg-gray-700");
+      dropArea.classList.add('border-indigo-500');
     });
-
-    dropZone.addEventListener("dragleave", () => {
-      dropZone.classList.remove("bg-gray-700");
+    dropArea.addEventListener('dragleave', () => {
+      dropArea.classList.remove('border-indigo-500');
     });
-
-    dropZone.addEventListener("drop", e => {
+    dropArea.addEventListener('drop', e => {
       e.preventDefault();
-      dropZone.classList.remove("bg-gray-700");
-      fileInput.files = e.dataTransfer.files;
+      dropArea.classList.remove('border-indigo-500');
+      input.files = e.dataTransfer.files;
+      updatePreview();
     });
+    input.addEventListener('change', updatePreview);
+
+    function updatePreview() {
+      preview.innerHTML = '';
+      const files = input.files;
+      for (let i = 0; i < files.length; i++) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          img.className = 'w-full h-auto rounded shadow';
+          preview.appendChild(img);
+        };
+        reader.readAsDataURL(files[i]);
+      }
+      status.textContent = `${files.length} 枚の画像を選択中`;
+    }
   </script>
-
 </body>
 </html>
-
