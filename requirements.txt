@@ -1,4 +1,6 @@
+flask
 ultralytics==8.1.22
 opencv-python
-flask
-werkzeug
+torch>=1.8.0
+torchvision
+numpy
