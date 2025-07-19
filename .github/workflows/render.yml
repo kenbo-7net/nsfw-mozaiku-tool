@@ -1,1 +1,18 @@
+services:
+  - type: web
+    name: nsfw-mozaiku-tool
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    autoDeploy: true
+    healthCheckPath: /
 
