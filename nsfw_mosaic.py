@@ -1,44 +1,58 @@
 import os
 import cv2
+import csv
+import datetime
+import requests
 from ultralytics import YOLO
 
-# モデルの読み込み
-model = YOLO('models/genital.pt')
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
+# モデルロード
+model = YOLO('models/genital.pt')  # penis, vagina, anus の3クラス
 
-# モザイク処理関数
-def mosaic_area(image, x, y, w, h, ratio=0.1):
-    mosaic = image[y:y+h, x:x+w]
-    small = cv2.resize(mosaic, (max(1, int(w*ratio)), max(1, int(h*ratio))), interpolation=cv2.INTER_LINEAR)
-    mosaic = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
-    image[y:y+h, x:x+w] = mosaic
-    return image
+# Slack連携（必要に応じて）
+SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL')  # .envやRenderの環境変数に設定
 
-# 画像を一括で処理
-def process_images(input_folder, output_folder):
-    for filename in os.listdir(input_folder):
-        name, ext = os.path.splitext(filename.lower())
-        if ext not in ALLOWED_EXTENSIONS:
-            continue
+def process_images(input_dir, output_dir, enable_csv=True, enable_slack=True):
+    os.makedirs(output_dir, exist_ok=True)
+    results_csv_path = os.path.join(output_dir, 'detection_results.csv')
 
-        path = os.path.join(input_folder, filename)
-        image = cv2.imread(path)
-        if image is None:
-            continue
+    if enable_csv:
+        csv_file = open(results_csv_path, mode='w', newline='', encoding='utf-8')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(['Filename', 'Class', 'X1', 'Y1', 'X2', 'Y2'])
 
-        # 推論
-        results = model(path)[0]
-        for box in results.boxes:
-            cls = int(box.cls[0])
-            if cls not in [0, 1, 2]:  # penis, vagina, anus のみ
-                continue
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(image.shape[1], x2), min(image.shape[0], y2)
-            image = mosaic_area(image, x1, y1, x2 - x1, y2 - y1)
+    for filename in os.listdir(input_dir):
+        if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+            image_path = os.path.join(input_dir, filename)
+            image = cv2.imread(image_path)
 
-        # 保存
-        output_path = os.path.join(output_folder, filename)
-        cv2.imwrite(output_path, image)
+            # 検出
+            results = model.predict(image)[0]
+            boxes = results.boxes
+            names = results.names if hasattr(results, 'names') else model.names
 
+            for box in boxes:
+                cls_id = int(box.cls[0])
+                label = names[cls_id]
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
 
+                # CSV出力
+                if enable_csv:
+                    csv_writer.writerow([filename, label, x1, y1, x2, y2])
+
+                # モザイク処理
+                roi = image[y1:y2, x1:x2]
+                if roi.size == 0: continue
+                mosaic = cv2.resize(roi, (8, 8), interpolation=cv2.INTER_LINEAR)
+                mosaic = cv2.resize(mosaic, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
+                image[y1:y2, x1:x2] = mosaic
+
+            cv2.imwrite(os.path.join(output_dir, filename), image)
+
+    if enable_csv:
+        csv_file.close()
+
+    # Slack通知
+    if enable_slack and SLACK_WEBHOOK_URL:
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        message = f'✅ NSFWモザイク処理が完了しました。\n🕒 {timestamp}\n📦 出力先: `{output_dir}`'
+        requests.post(SLACK_WEBHOOK_URL, json={"text": message})
