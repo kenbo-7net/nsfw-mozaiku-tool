@@ -2,7 +2,16 @@ services:
   - type: web
     name: nsfw-mozaiku-tool
     env: python
+    region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt
+    branch: main
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
     startCommand: python app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.13
+      - key: PORT
+        value: 10000
     autoDeploy: true
