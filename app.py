@@ -1,40 +1,35 @@
 import os
 import zipfile
 import csv
+import uuid
 import shutil
-import cv2
+import tempfile
 import datetime
+import json
 import requests
 from flask import Flask, render_template, request, send_file, jsonify
 from werkzeug.utils import secure_filename
-from nsfw_mosaic import process_images_with_csv_and_stats
+from nsfw_mosaic import process_images_and_log
+
+app = Flask(__name__)
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
-CSV_PATH = 'logs/results.csv'
-ZIP_PATH = 'outputs/processed_images.zip'
-SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK")
-
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+CSV_LOG = 'log.csv'
+ZIP_FILE = 'processed_images.zip'
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")  # 環境変数で設定
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs("logs", exist_ok=True)
 
-def clear_folder(folder):
-    for f in os.listdir(folder):
-        path = os.path.join(folder, f)
-        if os.path.isfile(path):
-            os.remove(path)
-
-def notify_slack(message):
-    if SLACK_WEBHOOK:
-        try:
-            requests.post(SLACK_WEBHOOK, json={"text": message})
-        except:
-            pass
+def clean_folders():
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
+        for f in os.listdir(folder):
+            os.remove(os.path.join(folder, f))
+    if os.path.exists(CSV_LOG):
+        os.remove(CSV_LOG)
+    if os.path.exists(ZIP_FILE):
+        os.remove(ZIP_FILE)
 
 @app.route('/')
 def index():
@@ -42,45 +37,56 @@ def index():
 
 @app.route('/process', methods=['POST'])
 def process():
-    clear_folder(OUTPUT_FOLDER)
+    clean_folders()
+    files = request.files.getlist('images')
 
-    files = request.files.getlist("images")
     image_paths = []
-
     for file in files:
         filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
-        image_paths.append(filepath)
+        path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(path)
+        image_paths.append(path)
 
-    stats, processed_files = process_images_with_csv_and_stats(image_paths, OUTPUT_FOLDER, CSV_PATH)
+    stats, processed_paths = process_images_and_log(image_paths, OUTPUT_FOLDER, CSV_LOG)
 
-    with zipfile.ZipFile(ZIP_PATH, 'w') as zipf:
-        for path in processed_files:
-            zipf.write(path, arcname=os.path.basename(path))
+    # ZIP化
+    with zipfile.ZipFile(ZIP_FILE, 'w') as zipf:
+        for fpath in processed_paths:
+            zipf.write(fpath, arcname=os.path.basename(fpath))
 
     # Slack通知
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    msg = f"✅ モザイク処理完了: {len(files)}件\n日付: {now}\nクラス内訳: {stats}"
-    notify_slack(msg)
+    if SLACK_WEBHOOK_URL:
+        summary = "\n".join([f"{cls}: {count}" for cls, count in stats.items()])
+        msg = {
+            "text": f"✅ モザイク処理完了 ({len(processed_paths)} 件)\n```{summary}```",
+        }
+        try:
+            requests.post(SLACK_WEBHOOK_URL, json=msg)
+        except Exception as e:
+            print("Slack通知失敗:", e)
 
-    return jsonify({"processed": [os.path.basename(p) for p in processed_files]})
+    return jsonify({
+        "success": True,
+        "count": len(processed_paths),
+        "stats": stats
+    })
+
+@app.route('/download_zip')
+def download_zip():
+    return send_file(ZIP_FILE, as_attachment=True)
+
+@app.route('/download_csv')
+def download_csv():
+    return send_file(CSV_LOG, as_attachment=True)
+
+@app.route('/images')
+def list_images():
+    files = os.listdir(OUTPUT_FOLDER)
+    return jsonify(sorted(files))
 
 @app.route('/outputs/<filename>')
-def get_output_file(filename):
+def get_image(filename):
     return send_file(os.path.join(OUTPUT_FOLDER, filename))
 
-@app.route('/download')
-def download():
-    return send_file(ZIP_PATH, as_attachment=True)
-
-@app.route('/clear', methods=['POST'])
-def clear():
-    clear_folder(UPLOAD_FOLDER)
-    clear_folder(OUTPUT_FOLDER)
-    if os.path.exists(ZIP_PATH):
-        os.remove(ZIP_PATH)
-    return '', 204
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)), debug=False)
+    app.run(debug=True, port=int(os.environ.get('PORT', 10000)), host='0.0.0.0')
