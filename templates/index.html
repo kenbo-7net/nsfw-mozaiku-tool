@@ -1,47 +1,140 @@
-<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>NSFW自動モザイクツール</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NSFWモザイク処理ツール</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: 1rem;
+      padding: 2rem;
+      text-align: center;
+      color: #666;
+      transition: all 0.3s ease;
+    }
+    .drop-zone.dragover {
+      background-color: #f0f0f0;
+      border-color: #888;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.8);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal img {
+      max-width: 90vw;
+      max-height: 90vh;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-900">
+<body class="bg-gray-100 text-gray-800">
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6 text-center">NSFW モザイク処理ツール</h1>
 
-  <div class="max-w-3xl mx-auto py-10 px-4">
-    <h1 class="text-3xl font-bold mb-6 text-center">NSFW画像自動モザイクツール</h1>
-
-    <!-- アップロードフォーム -->
-    <form id="upload-form" class="bg-white rounded shadow-md p-6" enctype="multipart/form-data" method="POST" action="/process">
-      <label class="block text-sm font-medium mb-2">画像ファイルを複数選択してください（最大100枚）</label>
-      <input type="file" name="images" id="images" multiple accept="image/*" required class="block w-full mb-4" />
-
-      <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
-        モザイク処理開始
-      </button>
-    </form>
-
-    <!-- ローディング表示 -->
-    <div id="loading" class="mt-6 text-center hidden">
-      <div class="flex justify-center items-center space-x-2">
-        <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.372 0 0 5.372 0 12h4z"></path>
-        </svg>
-        <span class="text-blue-600 font-semibold">画像を処理中です… 少々お待ちください</span>
-      </div>
+    <!-- ドロップエリア -->
+    <div id="dropZone" class="drop-zone mb-6">
+      ここに画像をドラッグ＆ドロップまたはクリックして選択
+      <input type="file" id="imageInput" multiple accept="image/*" class="hidden">
     </div>
 
+    <!-- ボタンエリア -->
+    <div class="flex gap-4 justify-center mb-6">
+      <button id="processBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">処理開始</button>
+      <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">すべて削除</button>
+      <a href="/download" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">ZIP一括DL</a>
+    </div>
+
+    <!-- ローディング表示 -->
+    <div id="loading" class="text-center hidden">
+      <p class="text-lg">🔁 処理中です。しばらくお待ちください…</p>
+    </div>
+
+    <!-- 処理済み画像の一覧表示 -->
+    <div id="resultGallery" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+
+    <!-- モーダル -->
+    <div id="modal" class="modal items-center justify-center">
+      <img id="modalImg" src="" alt="">
+    </div>
   </div>
 
   <script>
-    const form = document.getElementById("upload-form");
-    const loading = document.getElementById("loading");
+    const dropZone = document.getElementById('dropZone');
+    const imageInput = document.getElementById('imageInput');
+    const processBtn = document.getElementById('processBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const resultGallery = document.getElementById('resultGallery');
+    const loading = document.getElementById('loading');
+    const modal = document.getElementById('modal');
+    const modalImg = document.getElementById('modalImg');
+    let selectedFiles = [];
 
-    form.addEventListener("submit", () => {
-      loading.classList.remove("hidden");
+    dropZone.addEventListener('click', () => imageInput.click());
+    imageInput.addEventListener('change', e => handleFiles(e.target.files));
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
     });
-  </script>
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
 
+    function handleFiles(files) {
+      [...files].forEach(file => selectedFiles.push(file));
+      alert(`${files.length}枚の画像を選択しました。`);
+    }
+
+    processBtn.addEventListener('click', async () => {
+      if (selectedFiles.length === 0) return alert('画像が選択されていません');
+      const formData = new FormData();
+      selectedFiles.forEach(file => formData.append('images', file));
+      loading.classList.remove('hidden');
+      const res = await fetch('/process', { method: 'POST', body: formData });
+      const result = await res.json();
+      loading.classList.add('hidden');
+      if (result.status === 'success') {
+        alert(`処理完了: 成功 ${result.success}件 / 失敗 ${result.failed}件`);
+        loadResults();
+      }
+    });
+
+    async function loadResults() {
+      resultGallery.innerHTML = '';
+      const res = await fetch('/outputs');
+      const files = await res.json();
+      files.forEach(f => {
+        const img = document.createElement('img');
+        img.src = `/outputs/${f}`;
+        img.className = "cursor-pointer rounded shadow hover:scale-105 duration-200";
+        img.onclick = () => {
+          modal.style.display = 'flex';
+          modalImg.src = img.src;
+        };
+        resultGallery.appendChild(img);
+      });
+    }
+
+    clearBtn.addEventListener('click', async () => {
+      await fetch('/clear', { method: 'POST' });
+      resultGallery.innerHTML = '';
+      selectedFiles = [];
+      alert('削除しました');
+    });
+
+    modal.addEventListener('click', () => modal.style.display = 'none');
+  </script>
 </body>
 </html>
+
