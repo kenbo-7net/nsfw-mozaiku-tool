@@ -1,13 +1,21 @@
 import os
 import cv2
 import csv
+import torch
+from ultralytics.nn.tasks import attempt_load_one_weight
 from ultralytics import YOLO
 
-model = YOLO("models/genital.pt")
+# PyTorch 2.6 対応：weights_only=False を指定して強制ロード
+pt_path = "models/genital.pt"
+ckpt, _ = attempt_load_one_weight(pt_path, weights_only=False)
+model = YOLO(model=ckpt)
 
 def apply_mosaic(image, x1, y1, x2, y2, mosaic_rate=0.1):
     roi = image[y1:y2, x1:x2]
-    small = cv2.resize(roi, (max(1, int((x2 - x1) * mosaic_rate)), max(1, int((y2 - y1) * mosaic_rate))))
+    small = cv2.resize(roi, (
+        max(1, int((x2 - x1) * mosaic_rate)),
+        max(1, int((y2 - y1) * mosaic_rate))
+    ))
     mosaic = cv2.resize(small, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
     image[y1:y2, x1:x2] = mosaic
     return image
@@ -39,26 +47,23 @@ def process_images_and_log(image_paths, output_dir, csv_path):
             log_data.append({
                 "filename": os.path.basename(img_path),
                 "class": label,
-                "x1": x1,
-                "y1": y1,
-                "x2": x2,
-                "y2": y2
+                "x1": x1, "y1": y1,
+                "x2": x2, "y2": y2
             })
 
         output_path = os.path.join(output_dir, os.path.basename(img_path))
         cv2.imwrite(output_path, image)
         processed_paths.append(output_path)
 
-    # CSV出力
+    # CSV書き出し
     with open(csv_path, mode='w', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=["filename", "class", "x1", "y1", "x2", "y2"])
         writer.writeheader()
         writer.writerows(log_data)
 
-        # 統計行（最後に追記）
+        # 統計行（最後に）
         writer.writerow({})
         for cls, count in stats.items():
             writer.writerow({"filename": f"[STATS] {cls}", "class": count})
 
     return stats, processed_paths
-
