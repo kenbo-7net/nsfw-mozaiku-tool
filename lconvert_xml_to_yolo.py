@@ -1,10 +1,10 @@
 import os
 import xml.etree.ElementTree as ET
 
-input_dir = './labelImg/annotations'  # XMLフォルダ
-output_dir = './labelImg/annotations_yolo'  # 出力先
-
+input_dir = './labelImg/annotations'
+output_dir = './labelImg/annotations_yolo'
 classes = ["penis", "vagina", "anus"]
+
 os.makedirs(output_dir, exist_ok=True)
 
 def convert(size, box):
@@ -19,6 +19,7 @@ def convert(size, box):
 for file in os.listdir(input_dir):
     if not file.endswith('.xml'):
         continue
+
     in_file = open(os.path.join(input_dir, file), encoding='utf-8')
     tree = ET.parse(in_file)
     root = tree.getroot()
@@ -34,8 +35,11 @@ for file in os.listdir(input_dir):
             continue
         cls_id = classes.index(cls)
         xmlbox = obj.find('bndbox')
-        b = (float(xmlbox.find('xmin').text), float(xmlbox.find('ymin').text),
-             float(xmlbox.find('xmax').text), float(xmlbox.find('ymax').text))
+        b = (
+            float(xmlbox.find('xmin').text),
+            float(xmlbox.find('ymin').text),
+            float(xmlbox.find('xmax').text),
+            float(xmlbox.find('ymax').text),
+        )
         bb = convert((w, h), b)
         out_file.write(f"{cls_id} {' '.join([str(a) for a in bb])}\n")
-
